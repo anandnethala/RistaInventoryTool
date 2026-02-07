@@ -80,6 +80,7 @@ def parse_invoice(html):
     soup = BeautifulSoup(html, "html.parser")
     items = []
 
+    # Extract invoice date
     date_text = soup.find(string=re.compile("DATE & TIME"))
     invoice_date = None
     if date_text:
@@ -87,7 +88,14 @@ def parse_invoice(html):
         if m:
             invoice_date = m.group(0)
 
+    # Find main invoice table safely
     table = soup.find("table", attrs={"width": "100%"})
+
+    if table is None:
+        # Table not found – skip this invoice safely
+        print("⚠️ Skipping invoice: main table not found")
+        return items
+
     rows = table.find_all("tr")
 
     current_category = None
@@ -102,11 +110,18 @@ def parse_invoice(html):
 
         # Item row
         if len(tds) == 6 and re.match(r"\d+\.", tds[0].get_text(strip=True)):
-            item = tds[0].get_text(strip=True).split(".", 1)[1].strip()
-            qty = float(re.search(r"[\d.]+", tds[1].get_text()).group())
-            amt = float(
-                tds[5].get_text().replace("₹", "").replace(",", "").strip()
-            )
+            try:
+                item = tds[0].get_text(strip=True).split(".", 1)[1].strip()
+                qty = float(re.search(r"[\d.]+", tds[1].get_text()).group())
+                amt = float(
+                    tds[5].get_text()
+                    .replace("₹", "")
+                    .replace(",", "")
+                    .strip()
+                )
+            except Exception:
+                # Defensive: skip malformed rows
+                continue
 
             items.append({
                 "Date": invoice_date,
